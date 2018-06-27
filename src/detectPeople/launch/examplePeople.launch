@@ -11,9 +11,6 @@
     <node name="kitti_player" pkg="kitti_player" type="kitti_player" args= "-C -d $(arg directory) /kitti_player/color/left/image_rect:=/kitti_player/color/left/image_raw /kitti_player/color/right/image_rect:=/kitti_player/color/right/image_raw"/>
 
 
-  <node ns="kitti_player/color" name="stereo_image_proc" pkg="stereo_image_proc" type="stereo_image_proc"></node>
-
-
   <node pkg="detectPeople" type="people" name="people" output="screen"></node>
   
   
