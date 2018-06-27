@@ -1,0 +1,8 @@
+prefix=/home/jorge/catkin_ws/devel
+
+Name: detectPeople
+Description: Description of detectPeople
+Version: 0.0.0
+Cflags: 
+Libs: -L/home/jorge/catkin_ws/devel/lib 
+Requires: 

@@ -1,0 +1,8 @@
+prefix=/home/jorge/catkin_ws/install
+
+Name: detectObjects
+Description: Description of detectObjects
+Version: 0.0.0
+Cflags: 
+Libs: -L/home/jorge/catkin_ws/install/lib 
+Requires: 

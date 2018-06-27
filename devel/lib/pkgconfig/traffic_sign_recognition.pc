@@ -1,0 +1,8 @@
+prefix=/home/jorge/catkin_ws/devel
+
+Name: traffic_sign_recognition
+Description: Description of traffic_sign_recognition
+Version: 0.0.0
+Cflags: -I/home/jorge/catkin_ws/devel/include
+Libs: -L/home/jorge/catkin_ws/devel/lib 
+Requires: 

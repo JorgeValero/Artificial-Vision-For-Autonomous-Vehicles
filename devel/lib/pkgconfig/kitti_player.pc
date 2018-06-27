@@ -1,0 +1,8 @@
+prefix=/home/jorge/catkin_ws/devel
+
+Name: kitti_player
+Description: Description of kitti_player
+Version: 1.0.2
+Cflags: -I/home/jorge/catkin_ws/devel/include
+Libs: -L/home/jorge/catkin_ws/devel/lib 
+Requires: dynamic_reconfigure
