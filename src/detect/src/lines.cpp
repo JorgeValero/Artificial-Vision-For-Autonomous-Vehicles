@@ -522,7 +522,7 @@ void imageCallback(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "ImageConverter");
+  ros::init(argc, argv, "lines");
 
   ros::NodeHandle n;
 
