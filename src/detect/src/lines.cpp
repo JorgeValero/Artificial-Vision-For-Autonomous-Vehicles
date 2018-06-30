@@ -324,7 +324,7 @@ void discriminateLines(vector<Vec4i> linesP, cv::Mat dImg, vector<Vec4i> *horizo
 	     }
 
             //If it is horizontal line and it is white
-	    if (Angle>=87 && colorLine.val[0]>=180 && colorLine.val[1]>=180 && colorLine.val[2]>=180){
+	    if (Angle>=85 && colorLine.val[0]>=177 && colorLine.val[1]>=177 && colorLine.val[2]>=177){
 
 	        horizontal_lines->push_back(linesP[i]);
 
