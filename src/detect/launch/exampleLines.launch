@@ -14,7 +14,7 @@
   <node ns="kitti_player/color" name="stereo_image_proc" pkg="stereo_image_proc" type="stereo_image_proc"></node>
 
 
-  <node pkg="detect" type="ImageConverter" name="ImageConverter" output="screen"></node>
+  <node pkg="detect" type="lines" name="lines" output="screen"></node>
   
   
 </launch>
