@@ -52,8 +52,6 @@ cv::Mat detectPeople(cv::Mat dImg)
     /// Set up tracking vector
     vector<Point> track;
 
-    resize(dImg,dImg,Size(dImg.cols*2, dImg.rows*2));
-
     vector<Rect> found;
 
     vector<Rect> found2;
