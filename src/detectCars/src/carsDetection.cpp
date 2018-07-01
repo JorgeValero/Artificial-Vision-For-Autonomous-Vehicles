@@ -53,16 +53,6 @@ cv::Mat detectCars(cv::Mat img)
   //-- Detect cars
   car_cascade.detectMultiScale( frame_gray, boxes, 1.1, 2/*, 0|CV_HAAR_SCALE_IMAGE, Size(30, 30) );*/);
 
-  //for( size_t i = 0; i < boxes.size(); i++ )
-  //{
-    //Point center( boxes[i].x + boxes[i].width*0.5, boxes[i].y + boxes[i].height*0.5 );
-    //ellipse( img, center, Size( cars[i].width*0.5, cars[i].height*0.5), 0, 0, 360, Scalar( 255, 0, 255 ), 4, 8, 0 );
-    //cv::Rect r(Point(boxes[i].x + boxes[i].width*0.5), Point(boxes[i].y + boxes[i].height*0.5));
-    //boxes.push_back(r);
-
-  //}
-
-
   mergeOverlappingBoxes(boxes,img,newBoxes);
 
   for(size_t i = 0; i<newBoxes.size(); i++)
