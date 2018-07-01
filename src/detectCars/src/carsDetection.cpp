@@ -44,24 +44,24 @@ void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, st
 cv::Mat detectCars(cv::Mat img)
 {
   std::vector<Rect> boxes;
+  std::vector<Rect> boxesMedium;
   std::vector<Rect> newBoxes;
   cv::Mat frame_gray;
 
   cvtColor( img, frame_gray, CV_BGR2GRAY );
   equalizeHist( frame_gray, frame_gray );
-
   //-- Detect cars
   car_cascade.detectMultiScale( frame_gray, boxes, 1.1, 2/*, 0|CV_HAAR_SCALE_IMAGE, Size(30, 30) );*/);
 
-  mergeOverlappingBoxes(boxes,img,newBoxes);
-
-  for(size_t i = 0; i<newBoxes.size(); i++)
+  for(size_t i = 0; i<boxes.size(); i++)
   {
-      if(newBoxes[i].y>=(img.size().height/3)){
 
-      rectangle( img, newBoxes[i], cv::Scalar(255,0,255), 4);
+      if(boxes[i].height>=80 && boxes[i].width>=80 && boxes[i].height<=150 && boxes[i].width<=150){
+
+          rectangle( img, boxes[i], cv::Scalar(255,0,255), 4);
 
       }
+
   }
 
   return img;

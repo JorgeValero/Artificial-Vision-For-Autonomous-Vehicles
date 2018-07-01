@@ -2,7 +2,7 @@
 
     <arg name="date" value="2011_09_26" />
 
-    <arg name="kitti_data" value="$(arg date)_drive_0011_sync" />
+    <arg name="kitti_data" value="$(arg date)_drive_0015_sync" />
     <arg name="fps" default="1" />
 
     <arg name="directory" default="$(find kitti_player)/dataset/$(arg date)/$(arg kitti_data)/"/>
