@@ -31,60 +31,87 @@ String car_cascade_name = "/home/jorge/catkin_ws/src/detectCars/src/cars.xml";
 
 CascadeClassifier car_cascade;
 
-//Function that receives the images from the camera
+//Funcion que recibe la imagen de la camara.
 void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-//Function that detect the signals on the road
+//Esta funcion realiza la deteccion de vehiculos.
 cv::Mat detectCars(cv::Mat dImg);
-//We transform the image from sensor_msgs::ImageConstPtr to CV::Mat to use it
+//Transformamos la imagen del formato sensor_msgs::ImageConstPtr& al formato cv::Mat para procesarla.
 cv::Mat transform(const sensor_msgs::ImageConstPtr& msg);
+//Funcion que combina areas conjuntas detectadas.
 void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, std::vector<cv::Rect> &outputBoxes);
 
 
 
 cv::Mat detectCars(cv::Mat img)
 {
+  //Vector que almacenara las areas o vehiculos iniciales detectados
   std::vector<Rect> boxes;
-  std::vector<Rect> boxesMedium;
+
+  //Vector que almacenara las areas o vehiculos finales discriminadas
   std::vector<Rect> newBoxes;
+
+  //Imagen donde se guardara la imagen original pasada a escala de grises
   cv::Mat frame_gray;
 
+  //Transformar la imagen original en color a escala de grises
   cvtColor( img, frame_gray, CV_BGR2GRAY );
-  equalizeHist( frame_gray, frame_gray );
-  //-- Detect cars
-  car_cascade.detectMultiScale( frame_gray, boxes, 1.1, 2/*, 0|CV_HAAR_SCALE_IMAGE, Size(30, 30) );*/);
 
-  for(size_t i = 0; i<boxes.size(); i++)
+  //Obtener sus histogramas de intensidad
+  equalizeHist( frame_gray, frame_gray );
+
+  //Aplicacion del clasificador en cascada a la imagen en escala de grises
+  car_cascade.detectMultiScale( frame_gray, boxes, 1.1, 2);
+
+  //Combinacion de las areas detectadas que se solapen
+  mergeOverlappingBoxes(boxes,img,newBoxes);
+
+  //Recorremos dichas areas
+  for(size_t i = 0; i<newBoxes.size(); i++)
   {
 
-      if(boxes[i].height>=80 && boxes[i].width>=80 && boxes[i].height<=150 && boxes[i].width<=150){
+      //Aquellas areas cuyo tamaño cumplan las restricciones se pintan en la imagen
+      if(newBoxes[i].height>=80 && newBoxes[i].width>=80 && newBoxes[i].height<=150 && newBoxes[i].width<=150){
 
-          rectangle( img, boxes[i], cv::Scalar(255,0,255), 4);
+	  //Se pinta el area en la imagen
+          rectangle( img, newBoxes[i], cv::Scalar(255,0,255), 4);
 
       }
 
   }
 
   return img;
+
 }
 
 void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, std::vector<cv::Rect> &outputBoxes)
 {
-    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8UC1); // Mask of original image
-    cv::Size scaleFactor(10,10); // To expand rectangles, i.e. increase sensitivity to nearby rectangles. Doesn't have to be (10,10)--can be anything
+    //Se crea una mascara de la imagen original
+    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8UC1);
+
+    //Se define un factor de escala
+    cv::Size scaleFactor(10,10);
+
+    //Se recorren las areas detectadas
     for (int i = 0; i < inputBoxes.size(); i++)
     {
+        //Se obtienen las areas detectadas en base al factor definido
         cv::Rect box = inputBoxes.at(i) + scaleFactor;
-        cv::rectangle(mask, box, cv::Scalar(255), CV_FILLED); // Draw filled bounding boxes on mask
+
+        //Se pintan en la mascara
+        cv::rectangle(mask, box, cv::Scalar(255), CV_FILLED);
     }
 
+    //Vector donde almacenaremos las areas finales
     std::vector<std::vector<cv::Point> > contours;
-    // Find contours in mask
-    // If bounding boxes overlap, they will be joined by this function call
+
+    //Se detectan los contornos presentes en la mascara
     cv::findContours(mask, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
-    cv::Rect max;
+
+    //Se recorren dichos contornos
     for (int i = 0; i < contours.size(); i++)
     {
 
+	//Se almacenan en el vector pasado por referencia
 	outputBoxes.push_back(cv::boundingRect(contours.at(i)));
 
 
@@ -96,6 +123,7 @@ void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, st
 
 cv::Mat transform(const sensor_msgs::ImageConstPtr& msg){
 
+    //Transformamos la imagen al formato cv::Mat para poder trabajar con ella
     cv::Mat dImg =  cv_bridge::toCvShare(msg, "bgr8")->image;
 
     return dImg;
@@ -103,33 +131,38 @@ cv::Mat transform(const sensor_msgs::ImageConstPtr& msg){
 
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
+    //Medimos el tiempo de ejecucion del procesamiento
     auto start = std::chrono::high_resolution_clock::now();
 
-    if( !car_cascade.load( car_cascade_name ) ){ printf("--(!)Error loading\n"); 
+    //En el caso de error al cargar el clasificador
+    if( !car_cascade.load( car_cascade_name ) ){ printf("--(!)Error loading\n");
 
-    //We publish the image result
+    //Enviamos la imagen original sin realizar ningun tipo de procesamiento
     pub_.publish(msg);
 
     }else{
 
-    //We transform the message received to image to be able to work with it
+    //Transformamos la imagen recibida a formato cv::Mat para procesarla
     cv::Mat dImg = transform(msg);
 
-    //We detect the lines and the road signs in the image
+    //Detectamos los vehiculos presentes en la imagen y los pintamos
     cv::Mat carsImage = detectCars(dImg);
 
-    //We transform the results in image to publish it
+    //Transformamos la imagen con las detecciones a formato sensor_msgs::ImagePtr de ROS para poder enviarla
     sensor_msgs::ImagePtr send = cv_bridge::CvImage(std_msgs::Header(), "bgr8", carsImage).toImageMsg();
 
-    //We publish the image result
+    //Publicamos dicha imagen en su topico
     pub_.publish(send);
 
     }
 
+    //Paramos el tiempo de ejecucion
     auto finish = std::chrono::high_resolution_clock::now();
 
+    //Calculamos el tiempo
     std::chrono::duration<double> elapsed = finish - start;
 
+    //Mostramos el resultado
     ROS_INFO("Duración: %f",elapsed.count());
   
 }
@@ -142,10 +175,10 @@ int main(int argc, char **argv)
 
   image_transport::ImageTransport it(n);
 
-  //We get the image from the camera
+  //Creamos un suscriptor que reciba la imagen original de la camara
   image_transport::Subscriber sub = it.subscribe("/kitti_player/color/left/image_raw",1000,imageCallback);
 
-  //We publish the results
+  //Definimos el topico que enviara la imagen con las detecciones
   pub_ = it.advertise("/cars",1);  
 
   ros::spin();

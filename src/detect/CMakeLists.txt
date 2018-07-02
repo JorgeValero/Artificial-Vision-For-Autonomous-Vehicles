@@ -140,7 +140,13 @@ add_definitions(${PCL_DEFINITIONS})
 
 add_executable(lines src/lines.cpp)
 
-target_link_libraries(lines ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
+add_executable(ImageConverter src/ImageConverter.cpp)
+
+set(LIBS ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
+
+target_link_libraries(ImageConverter ${LIBS})
+
+target_link_libraries(lines ${LIBS})
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}

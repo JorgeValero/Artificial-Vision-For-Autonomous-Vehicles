@@ -33,45 +33,60 @@ vector<Vec4i> lane_lines;
 int errorDetection = 0;
 
 
-//Function that receives the images from the camera
+//Funcion que recibe la imagen de la camara.
 void imageCallback(const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
-//Function that detect the lines on the image
+//Funcion que detecta las lineas en la imagen.
 cv::Mat detectLines(cv::Mat dImg);
-//This function discriminates the lines to skip bugs, and divide the lines in vertical or horizontal lines
+//Esta funcion discrimina las lineas para evitar la deteccion de falsos positivos, y divide las lineas en verticales y horizontales.
 void discriminateLines(vector<Vec4i> linesP, cv::Mat dImg, vector<Vec4i> *horizontal_lines);
-//With all the lines detected, this function do one line at the left and one line at the right.
-//To do that, we calcule the middle line at the left, and the middle line at the right.
+//Esta funcion se encarga de agrupar las lineas pertenecientes a la izquierda y derecha, para obtener solamente dos lineas de carril.
+//Para hacerlo se obtiene la media entre ellas.
 vector<Vec4i> oneLine(vector<Vec4i> left_lines, vector<Vec4i> right_lines);
-//Function that draw the lines
+//Funcion que se encarga de dibujar las lineas.
 cv::Mat drawLines(cv::Mat dImg, vector<Vec4i> linesP, cv::Scalar color);
-//We divide the line in two parts until the distance is very short, and we see if the line is more or less white
+//Se realiza un algoritmo divide y venceras para comprobar el color de cada pixel perteneciente a la linea.
 cv::Vec3b detectColor(cv::Mat dImg, Vec4i l);
-//We crop the image in a triangle to detect only my lane, for helping the detection of lines and signals later
+//Esta funcion corta la imagen en un triangulo que muestra unicamente nuestro carril, asi logramos una mejor deteccion de las lineas y de las marcas viales.
 cv::Mat cropImage(cv::Mat dImg);
-//We transform the image from sensor_msgs::ImageConstPtr to CV::Mat to use it
+//Transformamos la imagen del formato sensor_msgs::Image& al formato cv::Mat para procesarla.
 cv::Mat transform(const sensor_msgs::Image& msg);
+//Esta funcion se encarga de obtener la imagen procedente de la nube de puntos.
 sensor_msgs::Image getImage(const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
+//Esta funcion se encarga de retornar la posicion 3D de la linea.
 void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_msg);
 
 
 void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_msg)
 {
+    //Creamos un objeto tipo PointIndices para guardar los indices de los puntos pertenecientes a las lineas detectadas
     pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+
+    //Se crea un objeto tipo ExtractIndices para extraer puntos de la base de datos
     pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+
+    //Se crea un vector auxiliar para ir guardando los puntos pertenecientes a las lineas
     std::vector<int> ind;
 
+    //Si han sido detectadas dos lineas
     if(lane_lines.size()==2){
 
+	    //Se obtienen los puntos de inicio y fin de cada linea
 	    Vec4i l = lane_lines[0];
+
 	    int idx = l[1] * dImg.cols + l[0];
+
 	    int idx2 = l[3] * dImg.cols + l[2];
 
 	    Vec4i l2 = lane_lines[1];
+
 	    int idx3 = l2[1] * dImg.cols + l2[0];
+
 	    int idx4 = l2[3] * dImg.cols + l2[2];
 
+	    //Se comprueba si dichos puntos existen en el mapa de puntos
 	    if(pcl::isFinite(cloud_msg->points[idx]) && pcl::isFinite(cloud_msg->points[idx2]) && pcl::isFinite(cloud_msg->points[idx3]) && pcl::isFinite(cloud_msg->points[idx4])){ 
 
+		    //Se calcula la ecuacion de la recta para las dos lineas y se obtienen los puntos que pertenezcan a ellas y existan en la nube de puntos
 		    float den1 = l[2] - l[0];
 
 		    float den2 = l[3] - l[1];
@@ -85,16 +100,21 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 		        for(int j=0; j<dImg.cols; j++){
 
 			    int p1=((i-l[0])/(den1));
+
 			    int p2=((j-l[1])/(den2));
+
 			    int p3=((i-l2[0])/(den3));
+
 			    int p4=((j-l2[1])/(den4));
 		
+			    //Si cumple la ecuacion y existe en la nube de puntos
 			    if(p1==p2 && pcl::isFinite(cloud_msg->points[p2 * dImg.cols + p1])){
 				
 				ind.push_back(p2 * dImg.cols + p1);
 
 		            }
 
+			    //Si cumple la ecuacion y existe en la nube de puntos
 			    if(p3==p4 && pcl::isFinite(cloud_msg->points[p4 * dImg.cols + p3])){
 				
 				ind.push_back(p4 * dImg.cols + p3);
@@ -104,39 +124,54 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 		    }
 
+		    //Se guardan todos los puntos en el objeto PointIndices
 		    inliers->indices=ind;
+
 		    inliers->indices.push_back(idx);
+
 		    inliers->indices.push_back(idx2);
+
 		    inliers->indices.push_back(idx3);
+
 		    inliers->indices.push_back(idx4);
 
-
 		    extract.setInputCloud(cloud_msg);
+
 		    extract.setIndices(inliers);
+
+		    //Se borran todos los puntos excepto los introducidos pertenecientes a las lineas
 		    extract.setNegative(false);
+
 		    extract.filter(*cloud_msg);
 
 	    }else{
 
+		    //si no existen en la nube de puntos, se devuelve una nube de puntos vacia
 		    extract.setInputCloud(cloud_msg);
+
 		    extract.setIndices(inliers);
+
 		    extract.setNegative(false);
+
 		    extract.filter(*cloud_msg);
 
 	    }
 
+    //Si se ha detectado solamente una linea
     }else if(lane_lines.size()==1)
     {
 
+	    //Se obtienen sus puntos de inicio y fin
 	    Vec4i l = lane_lines[0];
 
 	    int idx = l[1] * dImg.cols + l[0];
 
 	    int idx2 = l[3] * dImg.cols + l[2];
 
-
+	    //Se comprueba si dichos puntos existen en el mapa de puntos
 	    if(pcl::isFinite(cloud_msg->points[idx]) && pcl::isFinite(cloud_msg->points[idx2])){ 
 
+		    //Se calcula la ecuacion de la recta para la linea y se obtienen los puntos que pertenezcan a ellas y existan en la nube de puntos
 		    float den1 = l[2] - l[0];
 
 		    float den2 = l[3] - l[1];
@@ -149,6 +184,7 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 			    int p2=((j-l[1])/(den2));
 
+			    //Si cumple la ecuacion y existe en la nube de puntos
 			    if(p1==p2 && pcl::isFinite(cloud_msg->points[p2 * dImg.cols + p1])){
 			
 				ind.push_back(p2 * dImg.cols + p1);
@@ -158,32 +194,42 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 		    }
 
-
+		    //Se guardan todos los puntos en el objeto PointIndices
 		    inliers->indices=ind;
+
 		    inliers->indices.push_back(idx);
+
 		    inliers->indices.push_back(idx2);
 
-
-
+		    //Se borran todos los puntos excepto los introducidos pertenecientes a las lineas
 		    extract.setInputCloud(cloud_msg);
+
 		    extract.setIndices(inliers);
+
 		    extract.setNegative(false);
+
 		    extract.filter(*cloud_msg);
 
 	    }else{
-
+		    //Si no existen en la nube de puntos, se devuelve una nube de puntos vacia
 		    extract.setInputCloud(cloud_msg);
+
 		    extract.setIndices(inliers);
+
 		    extract.setNegative(false);
+
 		    extract.filter(*cloud_msg);
 
 	    }
 
     }else{
-
+	    //Si no se detectan lineas, se devuelve una nube de puntos vacia
 	    extract.setInputCloud(cloud_msg);
+
 	    extract.setIndices(inliers);
+
 	    extract.setNegative(false);
+
 	    extract.filter(*cloud_msg);
 
     }
@@ -194,47 +240,74 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 vector<Vec4i> oneLine(vector<Vec4i> left_lines, vector<Vec4i> right_lines){
 
     vector<Vec4i> lines;
-    
-    //We initialize the points of the initial and final point of the right line
-    //and the points of the initial and final point of the left line
+
+    //Definimos los puntos de las lineas detectadas    
     double MX1 = 0.0, MX2 = 0.0, MY1 = 0.0, MY2 = 0.0;
+
     double MX3 = 0.0, MX4 = 0.0, MY3 = 0.0, MY4 = 0.0;
 
-    //If it is the left line
+    //Si han sido detectadas lineas en el lado izquierdo
     if (left_lines.size()!=0){
-        //We calcule the mean line
+
+        //Recorremos dichas lineas
         for( size_t i = 0; i < left_lines.size(); i++ )
         {
+	    //Seleccionamos una
 	    Vec4i l = left_lines[i];
+
+    	    //Sumamos sus puntos
 	    MX1+=l[0];
+
 	    MY1+=l[1];
+
 	    MX2+=l[2];
+
 	    MY2+=l[3];
 
         }
 
+	//Una vez hallado el sumatorio de sus puntos, se hace la media
         MX1/=left_lines.size();
+
         MY1/=left_lines.size();
+
         MX2/=left_lines.size();
+
         MY2/=left_lines.size();
+
+	//Se almacena la media de todas las lineas
         lines.push_back(cv::Vec4i(MX1,MY1,MX2,MY2));
     }
-    //If it is the right line
+
+    //Si han sido detectadas lineas en el lado derecho
     if (right_lines.size()!=0){
-        //We calcule the mean line
+
+        //Recorremos dichas lineas
         for( size_t i = 0; i < right_lines.size(); i++ )
         {
+	    //Seleccionamos una
 	    Vec4i l = right_lines[i];
+
+    	    //Sumamos sus puntos
 	    MX3+=l[0];
+
 	    MY3+=l[1];
+
 	    MX4+=l[2];
+
 	    MY4+=l[3];
         }
 
+	//Una vez hallado el sumatorio de sus puntos, se hace la media
         MX3/=right_lines.size();
+
         MY3/=right_lines.size();
+
         MX4/=right_lines.size();
+
         MY4/=right_lines.size();
+
+        //Se almacena la media de todas las lineas
         lines.push_back(cv::Vec4i(MX3,MY3,MX4,MY4));
     }
 
@@ -244,20 +317,20 @@ vector<Vec4i> oneLine(vector<Vec4i> left_lines, vector<Vec4i> right_lines){
 
 cv::Vec3b detectColor(cv::Mat dImg, Vec4i l){
 
-    //We calcule the distance of the line
+    //Calculamos la distancia entre los pixeles.
     double distancia = sqrt(pow(l[0]-l[2],2)+pow(l[1]-l[3],2));
 
-    //If the distance is very short, we return the color of the medium point of the line
+    //Si la distancia es muy corta, se devuelve el color perteneciente al pixel que se encuentra en el medio.
     if (distancia < 20){
 	return dImg.at<Vec3b>(Point((int)((l[0]+l[2])/2),(int)((l[1]+l[3])/2)));
     }
     
-    //We divide the line in two parts
+    //Dividimos la linea en dos partes y se llama a la funcion de manera recursiva
     Vec3b colorLeft = detectColor(dImg, Vec4i(l[0],l[1],(int)((l[0]+l[2])/2),(int)((l[1]+l[3])/2)));
 
     Vec3b colorRight = detectColor(dImg, Vec4i((int)((l[0]+l[2])/2),(int)((l[1]+l[3])/2),l[2],l[3]));
 
-    //We return the mean color
+    //Se devuelve el color medio
     return Vec3b((int)((colorLeft.val[0]+colorRight.val[0])/2),
 	         (int)((colorLeft.val[1]+colorRight.val[1])/2),
                  (int)((colorLeft.val[2]+colorRight.val[2])/2));
@@ -266,26 +339,28 @@ cv::Vec3b detectColor(cv::Mat dImg, Vec4i l){
 
 cv::Mat drawLines(cv::Mat dImg, vector<Vec4i> linesP, cv::Scalar color){
 
-    //If there are not lines
+    //Si no hay lineas
     if(linesP.size()==0){
 
-        //We return the original image
+        //Se devuelve la imagen original sin modificar
         return dImg;
 
     }else{
 
+	//Copiamos la imagen
         cv::Mat cpImg = dImg.clone();
 
-        //We check the lines detected
+        //Recorremos las lineas detectadas
         for( size_t i = 0; i < linesP.size(); i++ )
         {
 	    Vec4i l = linesP[i];
 
-	    //Draw the lines
+	    //Dibujamos las lineas en la nueva imagen
 	    line(cpImg, Point(l[0], l[1]), Point(l[2], l[3]), color, 10);
 	    
         }
 
+	//Devolvemos la imagen modificada
         return cpImg;
 
     }
@@ -293,39 +368,45 @@ cv::Mat drawLines(cv::Mat dImg, vector<Vec4i> linesP, cv::Scalar color){
 
 void discriminateLines(vector<Vec4i> linesP, cv::Mat dImg, vector<Vec4i> *horizontal_lines){
 
+    //Vector que almacenara las lineas del carril izquierdo
     vector<Vec4i> left_lines;
 
+    //Vector que almacenara las lineas del carril derecho
     vector<Vec4i> right_lines;
 
-    //We check every line detected
+    //Recorremos las lineas detectadas
     for( size_t i = 0; i < linesP.size(); i++ )
     {
+	//Seleccionamos la linea
         Vec4i l = linesP[i];
 
-        //We detect the color of the line
+        //Obtenemos el color de la linea
         Vec3b colorLine = detectColor(dImg,l);
 
-        //If it is more or less white
+        //Si el color cumple con las restricciones de color impuestas
 	if(colorLine.val[0]>=165 && colorLine.val[1]>=165 && colorLine.val[2]>=165){
 
-            //We calcule the angle of the line
+            //Se calcula el angulo de la linea
 	    double Angle = atan2(fabsf(l[2] - l[0]), fabsf(l[3] - l[1])) * 180.0 / CV_PI;
 
-            //If it is vertical line and it is in the left
+            //Si es una linea vertical y se encuentra a la izquierda
             if (Angle<70 && l[0]<dImg.size().width/2 && l[2]<dImg.size().width/2){
 
+		//La almacenamos en el vector de lineas pertenecientes al carril izquierdo
                 left_lines.push_back(linesP[i]);
 
-             //If it is vertical line and it is in the right
+             //Si es una linea vertical y se encuentra a la derecha
              }else if(Angle<70 && l[0]>dImg.size().width/2 && l[2]>dImg.size().width/2){
 
+		//La almacenamos en el vector de lineas pertenecientes al carril derecho
 	        right_lines.push_back(linesP[i]);
 
 	     }
 
-            //If it is horizontal line and it is white
+            //Si es una linea horizontal y cumple con las restricciones de color impuestas
 	    if (Angle>=85 && colorLine.val[0]>=177 && colorLine.val[1]>=177 && colorLine.val[2]>=177){
 
+		//La almacenamos en el vector de lineas horizontales
 	        horizontal_lines->push_back(linesP[i]);
 
 	    }	
@@ -333,55 +414,68 @@ void discriminateLines(vector<Vec4i> linesP, cv::Mat dImg, vector<Vec4i> *horizo
 
     }
 
-    //We initialize a new vector of lines
+    //Inicializamos un vector auxiliar de lineas
     vector<Vec4i> aux_lines;
     
-    //We store the result lines (left and right)
+    //Agrupamos las lineas pertenecientes a la izquierda y la derecha, obteniendo asi dos lineas de carril, y las almacenamos en dicho vector
     aux_lines = oneLine(left_lines, right_lines);
 
-    //If at least there is one line and the error is not too much high
+    //Si al menos se ha detectado una linea y el error no supera un umbral determinado
     if(aux_lines.size()==1 && lane_lines.size()!=0 && errorDetection <=5){
-		//If the aux line detected is the left line
+
+		//Si esta linea es la perteneciente al carril izquierdo
 		if(aux_lines[0][0]<(dImg.size().width/2)){
-			//We check if the line of lane line is left line too
+
+			//Comprobamos si la linea que disponemos es tambien la izquierda
 			if(lane_lines[0][0]<(dImg.size().width/2)){
-				//We check if the right line exists
+
+				//Comprobamos si existe la linea del carril derecho
 				if(lane_lines.size()==2){
-					//We introduce the right line
+
+					//Si existe la introducimos
 					aux_lines.push_back(lane_lines[1]);
 				}
 			}else{		
-				//If it is the right line, we include it
+
+				//Si disponemos de la derecha, introducimos la izquierda
 				aux_lines.push_back(lane_lines[0]);
+
 			}
-		//If it is the right line
+		//Si se trata de la linea perteneciente al carril derecho
 		}else{
-			//If it is the left line
+
+			//Comprobamos si la que tenemos es del carril izquierdo
 			if(lane_lines[0][0]<(dImg.size().width/2)){
-			//We include it
-			aux_lines.push_back(lane_lines[0]);
+
+			    //Si existe la introducimos
+			    aux_lines.push_back(lane_lines[0]);
+
 			}else{
-				//if it is the right line, we check if the left line exists
+
+				//Comprobamos si existe la linea del carril izquierdo
 				if(lane_lines.size()==2){
-					//and include it
+
+					//Si existe la introducimos
 					aux_lines.push_back(lane_lines[1]);
+
 				}
 			}
 		}
     }
     
-    //If we detected the two lines, the error disappear
+    //Si hemos detectado dos lineas en esta imagen, el error se resetea
     if (aux_lines.size()==2){
 
 		errorDetection = 0;
 
-    //If we didn't detect any lines, we increment the error
+    //Si no hemos detectado ninguna linea, se incrementa el error
     }else if(aux_lines.size()!=1){
 
 		errorDetection += 1;
 
     }
-    //If the error is very high we have to change the lines, or if the aux lines is not empty
+
+    //Si hemos detectado nuevas lineas o el error es muy alto, se reemplazan las lineas
     if (aux_lines.size()!=0 || errorDetection > 5){
 
         lane_lines=aux_lines;
@@ -395,12 +489,13 @@ void discriminateLines(vector<Vec4i> linesP, cv::Mat dImg, vector<Vec4i> *horizo
 
 cv::Mat cropImage(cv::Mat dImg){
 
-    //Create a black image with the same size of dImg
+    //Se crea una imagen con el mismo tamaño que la imagen original
     cv::Mat mask = cv::Mat::zeros(dImg.rows, dImg.cols, CV_8UC1);
 
+    //Se inicializan una serie de puntos que definiran el area a recortar
     cv::Point corners[1][3];
 
-    //We choose the area we want to show
+    //Elegimos el area a recortar
     corners[0][0] = Point(dImg.size().width/5, dImg.size().height);
 
     corners[0][1] = Point(dImg.size().width/2, dImg.size().height/2);
@@ -415,15 +510,16 @@ cv::Mat cropImage(cv::Mat dImg){
 
     int line_type = 8;
 
-    //We include the area we chose previously
+    //Incluimos el area elegida en la imagen creada
     cv::fillPoly(mask, corner_list, &num_points, num_polygons, cv::Scalar(255, 255, 255), line_type);
 
-    //We create a image result
+    //Creamos una imagen con fondo negro que almacenara el resultado
     cv::Mat result(dImg.size(), dImg.type(), cv::Scalar(0,0,0));
 
-    //Copy the result in the new image
+    //Copiamos el area seleccionada en la nueva imagen
     dImg.copyTo(result,mask);
 
+    //Devolvemos esta nueva imagen
     return result;
 
 }
@@ -432,32 +528,35 @@ cv::Mat detectLines(cv::Mat dImg){
 
     cv::Mat dst, cdst;
 
-    //We change the color of the image to black and white
+    //Pasamos la imagen original a escala de grises
     cvtColor(dImg, dst, COLOR_RGB2GRAY);
 
+    //Le aplicamos el filtro Canny
     Canny(dst, cdst, 100, 200);
 
-    //We crop the image to detect the lines and road signals better
+    //Recortamos la imagen para mejorar la deteccion de las lineas
     cv::Mat croppedImage = cropImage(cdst);
 
-    // Probabilistic Line Transform
-    vector<Vec4i> linesP; // will hold the results of the detection
+    //Vector que almacenara los lineas detectadas
+    vector<Vec4i> linesP; 
 
-    //Function to detect lines
-    HoughLinesP(croppedImage, linesP, 6, CV_PI/60, 160, 100, 30); // runs the actual detection
+    //Aplicamos la funcion HoughLine a la imagen
+    HoughLinesP(croppedImage, linesP, 6, CV_PI/60, 160, 100, 30);
     
+    //Vector que almacenara las lineas horizontales detectadas
     vector<Vec4i> horizontal_lines;
     
-    //We discriminate the lines to remove bugs
+    //Funcion que se encarga de discriminar las lineas detectadas
     discriminateLines(linesP,dImg,&horizontal_lines);
  
-    //We draw the lines in the image result
+    //Dibujamos las lineas resultantes en la imagen original, y la devolvemos modificada
     return drawLines(drawLines(dImg, horizontal_lines, cv::Scalar(0,255,0)), lane_lines, cv::Scalar(255,0,0));
 
 }
 
 cv::Mat transform(const sensor_msgs::Image& msg){
 
+    //Transformamos la imagen al formato cv::Mat para poder trabajar con ella
     cv::Mat dImg =  cv_bridge::toCvCopy(msg, "bgr8")->image;
 
     return dImg;
@@ -469,7 +568,8 @@ sensor_msgs::Image getImage(const sensor_msgs::PointCloud2ConstPtr& cloud_msg){
 
     try
     {
-      pcl::toROSMsg (*cloud_msg, image_); //convert the cloud
+      //Obtenemos una imagen a partir de la nube de puntos
+      pcl::toROSMsg (*cloud_msg, image_); 
     }
     catch (std::runtime_error e)
     {
@@ -483,39 +583,49 @@ sensor_msgs::Image getImage(const sensor_msgs::PointCloud2ConstPtr& cloud_msg){
 
 void imageCallback(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {
-
+    //Medimos el tiempo de ejecucion del procesamiento
     auto start = std::chrono::high_resolution_clock::now();
 
+    //Obtenemos la imagen procedente de la nube de puntos
     sensor_msgs::Image imgmsg = getImage(cloud_msg);
 
-    //We transform the message received to image to be able to work with it
+    //La transformamos a formato cv::Mat para procesarla
     cv::Mat dImg = transform(imgmsg);
 
-    //We detect the lines
+    //Detectamos las lineas presentes en la imagen y las pintamos
     cv::Mat linesImage = detectLines(dImg);
 
+    //Creamos una nube de puntos que contendra la posicion 3D de las lineas
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp (new pcl::PointCloud<pcl::PointXYZRGB> ());
 
+    //Obtenemos un puntero de la nube de puntos
     pcl::fromROSMsg (*cloud_msg, *temp); 
 
+    //Imprimimos su posicion 3D en la nube de puntos
     linesPointcloud(dImg, temp);
 
+    //Creamos un mensaje sensor_msgs::PointCloud2 para mandar la nube de puntos a traves de ROS
     sensor_msgs::PointCloud2 resultLines;
 
+    //Transformamos la nube de puntos en el formato de mensajes de ROS para poder enviarla
     pcl::toROSMsg(*temp, resultLines);
 
-    //We transform the results in image to publish it
+    //Transformamos la imagen con las detecciones a formato sensor_msgs::ImagePtr de ROS para poder enviarla
     sensor_msgs::ImagePtr send = cv_bridge::CvImage(std_msgs::Header(), "bgr8", linesImage).toImageMsg();
 
-    //We publish the image result
+    //Publicamos dicha imagen en su topico
     pub_.publish(send);
 
+    //Publicamos en su topico la nube de puntos con la posicion en 3D de las lineas
     pub_2.publish(resultLines);
 
+    //Paramos el tiempo de ejecucion
     auto finish = std::chrono::high_resolution_clock::now();
 
+    //Calculamos el tiempo
     std::chrono::duration<double> elapsed = finish - start;
 
+    //Mostramos el resultado
     ROS_INFO("Duración: %f",elapsed.count());
   
 }
@@ -528,12 +638,13 @@ int main(int argc, char **argv)
 
   image_transport::ImageTransport it(n);
 
-  //We get the image from the camera
+  //Creamos un suscriptor que reciba la imagen de la camara
   ros::Subscriber sub = n.subscribe("/kitti_player/color/points2",1000,imageCallback);
 
-  //We publish the results
+  //Definimos el topico que enviara la imagen con las detecciones
   pub_ = it.advertise("/lines",1);  
 
+  //Definimos el topico que enviara la nube de puntos con la posicion 3D de las lineas detectadas
   pub_2 = n.advertise<sensor_msgs::PointCloud2> ("/pointcloudLines",1);
 
   ros::spin();

@@ -33,37 +33,34 @@ vector<Vec4i> lane_lines;
 int errorDetection = 0;
 
 
-//Function that receives the images from the camera
+//Funcion que recibe la imagen de la camara.
 void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-//Function that detect the signals on the road
+//Funcion que realiza la deteccion de marcas viales.
 cv::Mat detectFigures(cv::Mat dImg);
-//We transform the image from sensor_msgs::ImageConstPtr to CV::Mat to use it
+//Transformamos la imagen del formato sensor_msgs::ImageConstPtr& al formato cv::Mat para procesarla.
 cv::Mat transform(const sensor_msgs::ImageConstPtr& msg);
+//Funcion que combina areas conjuntas detectadas.
 void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, std::vector<cv::Rect> &outputBoxes);
 
 
 
 cv::Mat detectFigures(cv::Mat dImg){
 
+    //Vector donde almacenaremos las marcas viales detectadas
     vector<Rect> rects;
 
-    // Probabilistic Line Transform
-    vector<Vec4i> linesP; // will hold the results of the detection
-
-    //We choose the method to search the road signals
+    //Eleccion del metodo de matching a elegir
     int match_method = 4; //0 - 5
 
-    //We search all possible signals in the main image
+    //Recorremos las imagenes de referencia
     for( size_t i = 0; i < templats.size(); i++ ){
 
 	    cv::Mat result;
 
 	    cv::Mat img_display;
 
-	    //Read the road signal
 	    cv::Mat templat = imread(templats[i],CV_LOAD_IMAGE_COLOR);
 		
-            //If it is not empty
 	    if(!templat.empty()){
 	    
 	    dImg.copyTo( img_display );
@@ -74,42 +71,65 @@ cv::Mat detectFigures(cv::Mat dImg){
 
 	    result.create( result_rows, result_cols, CV_32FC1 );
 
-            //Search the template in the main image
+	    //Realizamos la deteccion de la imagen por referencia en la imagen principal
 	    matchTemplate( dImg, templat, result, match_method );
 
+	    //Normalizamos el resultado
 	    normalize( result, result, 0, 1, NORM_MINMAX, -1, Mat() );
 
 	    double minVal; double maxVal; Point minLoc; Point maxLoc;
 
 	    Point matchLoc;
 
+	    //Se obtienen las mejores areas en funcion del metodo de matching escogido
 	    minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, Mat() );
 
-	    //This depends on the method used
 	    if( match_method  == 0 || match_method == 1)
-	    { matchLoc = minLoc; }
+	    { 
+
+		matchLoc = minLoc; 
+
+	    }
+
 	    else
-	    { matchLoc = maxLoc; }
+	    { 
 
-	    //If it is in the floor, approximately in our lane
-if ((matchLoc.y>=(dImg.size().height/2)) && (matchLoc.x>=(dImg.size().width/2.5)) && (matchLoc.x<=(dImg.size().width-dImg.size().width/2.5)) ){
+		matchLoc = maxLoc; 
 
+	    }
+
+	    //Obtenemos unicamente las detecciones que se encuentren en nuestro carril
+            if ((matchLoc.y>=(dImg.size().height/2)) && (matchLoc.x>=(dImg.size().width/2.5)) && (matchLoc.x<=(dImg.size().width-dImg.size().width/2.5)) ){
+
+		//Se obtiene el color del pixel de en medio del area
 		Vec3b colorFigure = dImg.at<Vec3b>(Point((matchLoc.x*2 + templat.cols)/2,(matchLoc.y*2 + templat.rows)/2));
 
+		//Se desechan los pixeles que no cumplen las restricciones de color
 		if(colorFigure.val[0]>=215 && colorFigure.val[1]>=215 && colorFigure.val[2]>=215){
-                //We draw a line around the signal detected
+
+		    //Se crea el area
 	            cv::Rect r(matchLoc, Point( matchLoc.x + templat.cols , matchLoc.y + templat.rows));
+
+		    //Se almacena el area
 		    rects.push_back(r);
+
 		}
 
 	    }
 
 	    }
     }
+
+    //Vector donde almacenaremos las areas finales
     vector<Rect> newRects;
+
+    //Se combinan aquellas areas que se solapen
     mergeOverlappingBoxes(rects,dImg,newRects);
+
+    //Recorremos las nuevas areas
     for(int i = 0; i<newRects.size(); i++){
 
+        //Las pintamos en la imagen
 	rectangle( dImg, newRects[i], cv::Scalar(0,0,255), 4);
 
     }
@@ -120,22 +140,33 @@ if ((matchLoc.y>=(dImg.size().height/2)) && (matchLoc.x>=(dImg.size().width/2.5)
 
 void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, std::vector<cv::Rect> &outputBoxes)
 {
-    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8UC1); // Mask of original image
-    cv::Size scaleFactor(10,10); // To expand rectangles, i.e. increase sensitivity to nearby rectangles. Doesn't have to be (10,10)--can be anything
+    //Se crea una mascara de la imagen original
+    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8UC1);
+
+    //Se define un factor de escala
+    cv::Size scaleFactor(10,10);
+
+    //Se recorren las areas detectadas
     for (int i = 0; i < inputBoxes.size(); i++)
     {
+        //Se obtienen las areas detectadas en base al factor definido
         cv::Rect box = inputBoxes.at(i) + scaleFactor;
-        cv::rectangle(mask, box, cv::Scalar(255), CV_FILLED); // Draw filled bounding boxes on mask
+
+        //Se pintan en la mascara
+        cv::rectangle(mask, box, cv::Scalar(255), CV_FILLED);
     }
 
+    //Vector donde almacenaremos las areas finales
     std::vector<std::vector<cv::Point> > contours;
-    // Find contours in mask
-    // If bounding boxes overlap, they will be joined by this function call
+
+    //Se detectan los contornos presentes en la mascara
     cv::findContours(mask, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
-    cv::Rect max;
+
+    //Se recorren dichos contornos
     for (int i = 0; i < contours.size(); i++)
     {
 
+	//Se almacenan en el vector pasado por referencia
 	outputBoxes.push_back(cv::boundingRect(contours.at(i)));
 
 
@@ -147,6 +178,7 @@ void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, st
 
 cv::Mat transform(const sensor_msgs::ImageConstPtr& msg){
 
+    //Transformamos la imagen al formato cv::Mat para poder trabajar con ella
     cv::Mat dImg =  cv_bridge::toCvShare(msg, "bgr8")->image;
 
     return dImg;
@@ -154,24 +186,28 @@ cv::Mat transform(const sensor_msgs::ImageConstPtr& msg){
 
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
+    //Medimos el tiempo de ejecucion del procesamiento
     auto start = std::chrono::high_resolution_clock::now();
 
-    //We transform the message received to image to be able to work with it
+    //Transformamos la imagen recibida a formato cv::Mat para procesarla
     cv::Mat dImg = transform(msg);
 
-    //We detect the lines and the road signs in the image
+    //Detectamos las marcas viales presentes en la imagen y las pintamos
     cv::Mat figuresImage = detectFigures(dImg);
 
-    //We transform the results in image to publish it
+    //Transformamos la imagen con las detecciones a formato sensor_msgs::ImagePtr de ROS para poder enviarla
     sensor_msgs::ImagePtr send = cv_bridge::CvImage(std_msgs::Header(), "bgr8", figuresImage).toImageMsg();
 
-    //We publish the image result
+    //Publicamos dicha imagen en su topico
     pub_.publish(send);
 
+    //Paramos el tiempo de ejecucion
     auto finish = std::chrono::high_resolution_clock::now();
 
+    //Calculamos el tiempo
     std::chrono::duration<double> elapsed = finish - start;
 
+    //Mostramos el resultado
     ROS_INFO("Duración: %f",elapsed.count());
   
 }
@@ -182,21 +218,27 @@ int main(int argc, char **argv)
 
   ros::NodeHandle n;
 
-  //We include the symbols we are going to search in the main image
+  //Cargamos las imagenes de referencia, ES NECESARIO CAMBIAR LOS PATHS
   templats.push_back("/home/jorge/catkin_ws/src/detectSigns/src/Images/1-1.png");
+
   templats.push_back("/home/jorge/catkin_ws/src/detectSigns/src/Images/2-1.png");
+
   templats.push_back("/home/jorge/catkin_ws/src/detectSigns/src/Images/3-1.png");
+
   templats.push_back("/home/jorge/catkin_ws/src/detectSigns/src/Images/4-1.png");
+
   templats.push_back("/home/jorge/catkin_ws/src/detectSigns/src/Images/5-1.jpg");
+
   templats.push_back("/home/jorge/catkin_ws/src/detectSigns/src/Images/6-1.jpg");
+
   templats.push_back("/home/jorge/catkin_ws/src/detectSigns/src/Images/7-1.jpg");
 
   image_transport::ImageTransport it(n);
 
-  //We get the image from the camera
+  //Creamos un suscriptor que reciba la imagen original
   image_transport::Subscriber sub = it.subscribe("/kitti_player/color/left/image_raw",1000,imageCallback);
 
-  //We publish the results
+  //Definimos el topico que enviara la imagen con las detecciones
   pub_ = it.advertise("/signs",1);  
 
   ros::spin();

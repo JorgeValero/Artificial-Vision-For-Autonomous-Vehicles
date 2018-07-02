@@ -33,11 +33,13 @@ vector<Vec4i> lane_lines;
 int errorDetection = 0;
 
 
-//Function that receives the images from the camera
+//Funcion que recibe la imagen de la camara.
 void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-//Function that detect the lines on the image
+//Funcion que realiza la deteccion de peatones.
 cv::Mat detectPeople(cv::Mat dImg);
+//Transformamos la imagen del formato sensor_msgs::ImageConstPtr& al formato cv::Mat para procesarla.
 cv::Mat transform(const sensor_msgs::ImageConstPtr& msg);
+//Funcion que combina areas conjuntas detectadas.
 void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, std::vector<cv::Rect> &outputBoxes);
 
 
@@ -45,51 +47,48 @@ void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, st
 cv::Mat detectPeople(cv::Mat dImg)
 {
 
-    /// Set up the pedestrian detector --> let us take the default one
     HOGDescriptor hog;
+
+    //Establecemos la deteccion de personas por defecto
     hog.setSVMDetector(HOGDescriptor::getDefaultPeopleDetector());
 
-    /// Set up tracking vector
-    vector<Point> track;
-
+    //Vector donde almacenaremos los peatones detectados
     vector<Rect> found;
 
+    //Vector donde almacenaremos los peatones discriminados
     vector<Rect> found2;
 
+    //Funcion que realiza la deteccion de peatones
     hog.detectMultiScale(dImg, found, 0, Size(8,8), Size(32,32),1.05,2);
 
-    /// draw detections and store location
-    for( size_t i = 0; i < found.size(); i++ )
+    //Recorremos las areas detectadas
+    for(size_t i = 0; i<found.size(); i++)
     {
-	Rect r = found[i];
+        //Desechamos las detecciones que se encuentren en el cielo de la imagen
+	if(found[i].y>=(dImg.size().height/3)){
 
-	for(size_t j = 0; j<found.size(); j++)
-	{
-	    if(j!=i && (r & found[j])==r){
-		break;}
+	    //Obtenemos el color perteneciente al pixel de en medio de la deteccion
+	    Vec3b colorPerson = dImg.at<Vec3b>(Point((found[i].x*2 + found[i].width)/2,(found[i].y*2 + found[i].height)/2));
 
-	    if(found[i].y>=(dImg.size().height/3)){
+	    //Desechamos las detecciones cuyo pixel interior sea muy blanco, para evitar la confusion con marcas viales
+	    if(colorPerson.val[0]<=190 && colorPerson.val[1]<=190 && colorPerson.val[2]<=190){
 
-		    Vec3b colorPerson = dImg.at<Vec3b>(Point((found[i].x*2 + found[i].width)/2,(found[i].y*2 + found[i].height)/2));
+	        found2.push_back(found[i]);
 
-		    if(colorPerson.val[0]<=180 && colorPerson.val[1]<=180 && colorPerson.val[2]<=180){
-
-	                found2.push_back(found[i]);
-
-	     	    }
-	     }
-
+	    }
 	}
-
      }
 
+    //Vector donde almacenaremos las areas finales detectadas
     vector<Rect> result;
 
+    //Funcion para combinar las areas solapadas
     mergeOverlappingBoxes(found2,dImg,result);
 
+    //Recorremos las areas finales
     for(int i = 0; i<result.size(); i++)
     {
-
+	//Dibujamos las areas en la imagen
 	rectangle(dImg, result[i], cv::Scalar(0,0,0), 3);
 
     }
@@ -100,22 +99,36 @@ cv::Mat detectPeople(cv::Mat dImg)
 
 void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, std::vector<cv::Rect> &outputBoxes)
 {
-    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8UC1); // Mask of original image
-    cv::Size scaleFactor(10,10); // To expand rectangles, i.e. increase sensitivity to nearby rectangles. Doesn't have to be (10,10)--can be anything
+    //Se crea una mascara de la imagen original
+    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8UC1);
+
+    //Se define un factor de escala
+    cv::Size scaleFactor(10,10);
+
+    //Se recorren las areas detectadas
     for (int i = 0; i < inputBoxes.size(); i++)
     {
+        //Se obtienen las areas detectadas en base al factor definido
         cv::Rect box = inputBoxes.at(i) + scaleFactor;
-        cv::rectangle(mask, box, cv::Scalar(255), CV_FILLED); // Draw filled bounding boxes on mask
+
+        //Se pintan en la mascara
+        cv::rectangle(mask, box, cv::Scalar(255), CV_FILLED);
     }
 
+    //Vector donde almacenaremos las areas finales
     std::vector<std::vector<cv::Point> > contours;
-    // Find contours in mask
-    // If bounding boxes overlap, they will be joined by this function call
+
+    //Se detectan los contornos presentes en la mascara
     cv::findContours(mask, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 
+    //Se recorren dichos contornos
     for (int i = 0; i < contours.size(); i++)
     {
+
+	//Se almacenan en el vector pasado por referencia
 	outputBoxes.push_back(cv::boundingRect(contours.at(i)));
+
+
     }
 
     
@@ -124,6 +137,7 @@ void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, st
 
 cv::Mat transform(const sensor_msgs::ImageConstPtr& msg){
 
+    //Transformamos la imagen al formato cv::Mat para poder trabajar con ella
     cv::Mat dImg =  cv_bridge::toCvShare(msg, "bgr8")->image;
 
     return dImg;
@@ -131,24 +145,28 @@ cv::Mat transform(const sensor_msgs::ImageConstPtr& msg){
 
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
+    //Medimos el tiempo de ejecucion del procesamiento
     auto start = std::chrono::high_resolution_clock::now();
     
-    //We transform the message received to image to be able to work with it
+    //Transformamos la imagen recibida a formato cv::Mat para procesarla
     cv::Mat dImg = transform(msg);
 
-    //We detect the lines and the road signs in the image
+    //Detectamos los peatones presentes en la imagen y las pintamos
     cv::Mat peopleImage = detectPeople(dImg);
 
-    //We transform the results in image to publish it
+    //Transformamos la imagen con las detecciones a formato sensor_msgs::ImagePtr de ROS para poder enviarla
     sensor_msgs::ImagePtr send = cv_bridge::CvImage(std_msgs::Header(), "bgr8", peopleImage).toImageMsg();
 
-    //We publish the image result
+    //Publicamos dicha imagen en su topico
     pub_.publish(send);
 
+    //Paramos el tiempo de ejecucion
     auto finish = std::chrono::high_resolution_clock::now();
 
+    //Calculamos el tiempo
     std::chrono::duration<double> elapsed = finish - start;
 
+    //Mostramos el resultado
     ROS_INFO("Duración: %f",elapsed.count());
   
 }
@@ -161,10 +179,10 @@ int main(int argc, char **argv)
 
   image_transport::ImageTransport it(n);
 
-  //We get the image from the camera
+  //Creamos un suscriptor que reciba la imagen original de la camara
   image_transport::Subscriber sub = it.subscribe("/kitti_player/color/left/image_raw",1000,imageCallback);
 
-  //We publish the results
+  //Definimos el topico que enviara la imagen con las detecciones
   pub_ = it.advertise("/people",1);  
 
   ros::spin();
