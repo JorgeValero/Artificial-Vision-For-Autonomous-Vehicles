@@ -219,42 +219,51 @@ cv::Mat detectFigures(cv::Mat dImg){
 
 cv::Mat detectCars(cv::Mat img)
 {
-  //Vector que almacenara las areas o vehiculos iniciales detectados
-  std::vector<Rect> boxes;
+  //En el caso de error al cargar el clasificador
+  if( !car_cascade.load( car_cascade_name ) ){ printf("--(!)Error loading\n");
 
-  //Vector que almacenara las areas o vehiculos finales discriminadas
-  std::vector<Rect> newBoxes;
+          return img; 
 
-  //Imagen donde se guardara la imagen original pasada a escala de grises
-  cv::Mat frame_gray;
+  } else {
 
-  //Transformar la imagen original en color a escala de grises
-  cvtColor( img, frame_gray, CV_BGR2GRAY );
+	  //Vector que almacenara las areas o vehiculos iniciales detectados
+	  std::vector<Rect> boxes;
 
-  //Obtener sus histogramas de intensidad
-  equalizeHist( frame_gray, frame_gray );
+	  //Vector que almacenara las areas o vehiculos finales discriminadas
+	  std::vector<Rect> newBoxes;
 
-  //Aplicacion del clasificador en cascada a la imagen en escala de grises
-  car_cascade.detectMultiScale( frame_gray, boxes, 1.1, 2);
+	  //Imagen donde se guardara la imagen original pasada a escala de grises
+	  cv::Mat frame_gray;
 
-  //Combinacion de las areas detectadas que se solapen
-  mergeOverlappingBoxes(boxes,img,newBoxes);
+	  //Transformar la imagen original en color a escala de grises
+	  cvtColor( img, frame_gray, CV_BGR2GRAY );
 
-  //Recorremos dichas areas
-  for(size_t i = 0; i<newBoxes.size(); i++)
-  {
+	  //Obtener sus histogramas de intensidad
+	  equalizeHist( frame_gray, frame_gray );
 
-      //Aquellas areas cuyo tamaño cumplan las restricciones se pintan en la imagen
-      if(newBoxes[i].height>=80 && newBoxes[i].width>=80 && newBoxes[i].height<=150 && newBoxes[i].width<=150){
+	  //Aplicacion del clasificador en cascada a la imagen en escala de grises
+	  car_cascade.detectMultiScale( frame_gray, boxes, 1.1, 2);
 
-	  //Se pinta el area en la imagen
-          rectangle( img, newBoxes[i], cv::Scalar(255,0,255), 4);
+	  //Combinacion de las areas detectadas que se solapen
+	  mergeOverlappingBoxes(boxes,img,newBoxes);
 
-      }
+	  //Recorremos dichas areas
+	  for(size_t i = 0; i<newBoxes.size(); i++)
+	  {
+
+	      //Aquellas areas cuyo tamaño cumplan las restricciones se pintan en la imagen
+	      if(newBoxes[i].height>=80 && newBoxes[i].width>=80 && newBoxes[i].height<=150 && newBoxes[i].width<=150){
+
+		  //Se pinta el area en la imagen
+		  rectangle( img, newBoxes[i], cv::Scalar(255,0,255), 4);
+
+	      }
+
+	  }
+
+	  return img; 
 
   }
-
-  return img;
 
 }
 
