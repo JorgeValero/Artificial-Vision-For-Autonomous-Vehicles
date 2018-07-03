@@ -67,7 +67,8 @@ void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, st
 cv::Mat detectFigures(cv::Mat dImg);
 //Funcion que realiza la deteccion de peatones.
 cv::Mat detectPeople(cv::Mat dImg);
-
+//Se obtiene el punto medio de la recta
+Point pixelMedium(cv::Mat dImg, Vec4i l);
 
 
 cv::Mat detectPeople(cv::Mat dImg)
@@ -331,50 +332,10 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 	    int idx4 = l2[3] * dImg.cols + l2[2];
 
-	    //Se comprueba si dichos puntos existen en el mapa de puntos
+	    //Se comprueba si los puntos inicio y fin existen en el mapa de puntos
 	    if(pcl::isFinite(cloud_msg->points[idx]) && pcl::isFinite(cloud_msg->points[idx2]) && pcl::isFinite(cloud_msg->points[idx3]) && pcl::isFinite(cloud_msg->points[idx4])){ 
 
-		    //Se calcula la ecuacion de la recta para las dos lineas y se obtienen los puntos que pertenezcan a ellas y existan en la nube de puntos
-		    float den1 = l[2] - l[0];
-
-		    float den2 = l[3] - l[1];
-
-		    float den3 = l2[2] - l2[0];
-
-		    float den4 = l2[3] - l2[1];
-
-		    for(int i=0; i<dImg.rows; i++){
-
-		        for(int j=0; j<dImg.cols; j++){
-
-			    int p1=((i-l[0])/(den1));
-
-			    int p2=((j-l[1])/(den2));
-
-			    int p3=((i-l2[0])/(den3));
-
-			    int p4=((j-l2[1])/(den4));
-		
-			    //Si cumple la ecuacion y existe en la nube de puntos
-			    if(p1==p2 && pcl::isFinite(cloud_msg->points[p2 * dImg.cols + p1])){
-				
-				ind.push_back(p2 * dImg.cols + p1);
-
-		            }
-
-			    //Si cumple la ecuacion y existe en la nube de puntos
-			    if(p3==p4 && pcl::isFinite(cloud_msg->points[p4 * dImg.cols + p3])){
-				
-				ind.push_back(p4 * dImg.cols + p3);
-
-		            }
-		        }
-
-		    }
-
-		    //Se guardan todos los puntos en el objeto PointIndices
-		    inliers->indices=ind;
-
+		    //Si existen los introducimos
 		    inliers->indices.push_back(idx);
 
 		    inliers->indices.push_back(idx2);
@@ -383,27 +344,131 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 		    inliers->indices.push_back(idx4);
 
-		    extract.setInputCloud(cloud_msg);
+	    }
 
-		    extract.setIndices(inliers);
+	    //Se coge la linea
+	    Vec4i aux = l;
 
-		    //Se borran todos los puntos excepto los introducidos pertenecientes a las lineas
-		    extract.setNegative(false);
+	    //Hallamos la distancia entre los puntos
+	    double distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
 
-		    extract.filter(*cloud_msg);
+	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte izquierda de la linea 1)
+	    while(distancia>2){
 
-	    }else{
+		//Se halla la nueva distancia entre el punto inicial y el punto de en medio
+	        distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
 
-		    //si no existen en la nube de puntos, se devuelve una nube de puntos vacia
-		    extract.setInputCloud(cloud_msg);
+		//Cogemos el punto entre ellos
+		Point punto = pixelMedium(dImg,aux);
 
-		    extract.setIndices(inliers);
+		//Dividimos la linea
+	        aux = Vec4i(aux[0],aux[1],punto.x,punto.y);
 
-		    extract.setNegative(false);
+		//Si dicho punto existe en la nube
+		if(pcl::isFinite(cloud_msg->points[punto.y*dImg.cols+punto.x])){
+		    
+		    //Lo introducimos
+		    ind.push_back(punto.y*dImg.cols+punto.x);
 
-		    extract.filter(*cloud_msg);
+		}
 
 	    }
+		
+	    //Se coge la linea
+	    Vec4i aux2 = l2;
+
+	    //Hallamos la distancia entre los puntos
+	    double distancia2 = sqrt(pow(aux2[0]-aux2[2],2)+pow(aux2[1]-aux2[3],2));
+
+	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte izquierda de la linea 2)
+	    while(distancia2>2){
+
+		//Se halla la nueva distancia entre el punto inicial y el punto de en medio
+		distancia2 = sqrt(pow(aux2[0]-aux2[2],2)+pow(aux2[1]-aux2[3],2));
+
+		//Cogemos el punto entre ellos
+		Point punto2 = pixelMedium(dImg,aux2);
+
+		//Dividimos la linea
+	        aux2 = Vec4i(aux2[0],aux2[1],punto2.x,punto2.y);
+
+		//Si dicho punto existe en la nube
+		if(pcl::isFinite(cloud_msg->points[punto2.y*dImg.cols+punto2.x])){
+		    
+		    //Lo introducimos
+		    ind.push_back(punto2.y*dImg.cols+punto2.x);
+
+		}
+
+	    }
+
+	    //Cogemos de nuevo la linea 1
+	    Vec4i aux3 = l;
+
+	    //Hallamos la distancia entre los puntos
+	    double distancia3 = sqrt(pow(aux3[0]-aux3[2],2)+pow(aux3[1]-aux3[3],2));
+
+	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte derecha de la linea 1)
+	    while(distancia3>2){
+
+		//Se halla la nueva distancia entre el punto de en medio y el punto final
+	        distancia3 = sqrt(pow(aux3[0]-aux3[2],2)+pow(aux3[1]-aux3[3],2));
+
+		//Cogemos el punto entre ellos
+		Point punto3 = pixelMedium(dImg,aux3);
+
+		//Dividimos la linea
+	        aux3 = Vec4i(punto3.x,punto3.y,aux3[2],aux3[3]);
+
+		//Si dicho punto existe en la nube
+		if(pcl::isFinite(cloud_msg->points[punto3.y*dImg.cols+punto3.x])){
+		    
+		    //Lo introducimos
+		    ind.push_back(punto3.y*dImg.cols+punto3.x);
+
+		}
+
+	    }
+
+	    //Cogemos de nuevo la linea 2
+	    Vec4i aux4 = l2;
+
+	    //Hallamos la distancia entre los puntos
+	    double distancia4 = sqrt(pow(aux4[0]-aux4[2],2)+pow(aux4[1]-aux4[3],2));
+
+	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte derecha de la linea 2)
+	    while(distancia4>2){
+
+		//Se halla la nueva distancia entre el punto de en medio y el punto final
+		distancia4 = sqrt(pow(aux4[0]-aux4[2],2)+pow(aux4[1]-aux4[3],2));
+
+		//Cogemos el punto entre ellos
+		Point punto4 = pixelMedium(dImg,aux4);
+
+		//Dividimos la linea
+	        aux4 = Vec4i(punto4.x,punto4.y,aux4[2],aux4[3]);
+
+		//Si dicho punto existe en la nube
+		if(pcl::isFinite(cloud_msg->points[punto4.y*dImg.cols+punto4.x])){
+		    
+		    //Lo introducimos
+		    ind.push_back(punto4.y*dImg.cols+punto4.x);
+
+		}
+
+	    }
+
+
+	    inliers->indices=ind;
+
+	    extract.setInputCloud(cloud_msg);
+
+	    extract.setIndices(inliers);
+
+	    //Se borran todos los puntos excepto los introducidos pertenecientes a las lineas
+	    extract.setNegative(false);
+
+	    extract.filter(*cloud_msg);
 
     //Si se ha detectado solamente una linea
     }else if(lane_lines.size()==1)
@@ -416,59 +481,82 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 	    int idx2 = l[3] * dImg.cols + l[2];
 
-	    //Se comprueba si dichos puntos existen en el mapa de puntos
+	    //Se comprueba si los puntos inicio y fin de la linea existen en el mapa de puntos
 	    if(pcl::isFinite(cloud_msg->points[idx]) && pcl::isFinite(cloud_msg->points[idx2])){ 
 
-		    //Se calcula la ecuacion de la recta para la linea y se obtienen los puntos que pertenezcan a ellas y existan en la nube de puntos
-		    float den1 = l[2] - l[0];
+		//Si existen los introducimos
+	        inliers->indices.push_back(idx);
 
-		    float den2 = l[3] - l[1];
-
-		    for(int i=0; i<dImg.rows; i++){
-
-		        for(int j=0; j<dImg.cols; j++){
-
-   			    int p1=((i-l[0])/(den1));
-
-			    int p2=((j-l[1])/(den2));
-
-			    //Si cumple la ecuacion y existe en la nube de puntos
-			    if(p1==p2 && pcl::isFinite(cloud_msg->points[p2 * dImg.cols + p1])){
-			
-				ind.push_back(p2 * dImg.cols + p1);
-
-		            }
-		        }
-
-		    }
-
-		    //Se guardan todos los puntos en el objeto PointIndices
-		    inliers->indices=ind;
-
-		    inliers->indices.push_back(idx);
-
-		    inliers->indices.push_back(idx2);
-
-		    //Se borran todos los puntos excepto los introducidos pertenecientes a las lineas
-		    extract.setInputCloud(cloud_msg);
-
-		    extract.setIndices(inliers);
-
-		    extract.setNegative(false);
-
-		    extract.filter(*cloud_msg);
-
-	    }else{
-		    //Si no existen en la nube de puntos, se devuelve una nube de puntos vacia
-		    extract.setInputCloud(cloud_msg);
-
-		    extract.setIndices(inliers);
-
-		    extract.setNegative(false);
-
-		    extract.filter(*cloud_msg);
+	        inliers->indices.push_back(idx2);
 
 	    }
+
+	    //Se coge la linea
+	    Vec4i aux = l;
+
+	    //Hallamos la distancia entre los puntos
+	    double distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
+
+	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte izquierda de la linea)
+	    while(distancia>2){
+
+		//Se halla la nueva distancia entre el punto inicial y el punto de en medio
+	        distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
+
+		//Cogemos el punto entre ellos
+		Point punto = pixelMedium(dImg,aux);
+
+		//Dividimos la linea
+	        aux = Vec4i(aux[0],aux[1],punto.x,punto.y);
+
+		//Si dicho punto existe en la nube
+		if(pcl::isFinite(cloud_msg->points[punto.y*dImg.cols+punto.x])){
+		    
+		    //Lo introducimos
+		    ind.push_back(punto.y*dImg.cols+punto.x);
+
+		}
+
+	    }
+
+	    //Cogemos de nuevo la linea
+	    aux = l;
+
+	    //Hallamos la distancia entre los puntos
+	    distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
+
+	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte derecha de la linea)
+	    while(distancia>2){
+
+		//Se halla la nueva distancia entre el punto de en medio y el punto final
+	        distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
+
+		//Cogemos el punto entre ellos
+		Point punto = pixelMedium(dImg,aux);
+
+		//Dividimos la linea
+	        aux = Vec4i(punto.x,punto.y,aux[2],aux[3]);
+
+		//Si dicho punto existe en la nube
+		if(pcl::isFinite(cloud_msg->points[punto.y*dImg.cols+punto.x])){
+		    
+		    //Lo introducimos
+		    ind.push_back(punto.y*dImg.cols+punto.x);
+
+		}
+
+	    }
+
+	    inliers->indices=ind;
+
+	    //Se borran todos los puntos excepto los introducidos pertenecientes a las lineas
+	    extract.setInputCloud(cloud_msg);
+
+	    extract.setIndices(inliers);
+
+	    extract.setNegative(false);
+
+	    extract.filter(*cloud_msg);
 
     }else{
 	    //Si no se detectan lineas, se devuelve una nube de puntos vacia
@@ -481,6 +569,13 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 	    extract.filter(*cloud_msg);
 
     }
+
+}
+
+Point pixelMedium(cv::Mat dImg, Vec4i l){
+
+    //Si la distancia es muy corta, se devuelve el color perteneciente al pixel que se encuentra en el medio.
+    return Point((int)((l[0]+l[2])/2),(int)((l[1]+l[3])/2));
 
 }
 
