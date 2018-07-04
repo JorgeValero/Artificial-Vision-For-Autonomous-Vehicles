@@ -67,8 +67,8 @@ void mergeOverlappingBoxes(std::vector<cv::Rect> &inputBoxes, cv::Mat &image, st
 cv::Mat detectFigures(cv::Mat dImg);
 //Funcion que realiza la deteccion de peatones.
 cv::Mat detectPeople(cv::Mat dImg);
-//Se obtiene el punto medio de la recta
-Point pixelMedium(cv::Mat dImg, Vec4i l);
+//Se obtienen los puntos pertenecientes a la recta a traves de un algoritmo de divide y venceras
+vector<Point> lineVec(cv::Mat dImg, Vec4i l);
 
 
 cv::Mat detectPeople(cv::Mat dImg)
@@ -346,118 +346,37 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 	    }
 
-	    //Se coge la linea
-	    Vec4i aux = l;
+	    //Obtenemos todos los puntos pertenecientes a la linea 1
+	    vector<Point> pixeles = lineVec(dImg,l);
 
-	    //Hallamos la distancia entre los puntos
-	    double distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
+	    //Los recorremos
+	    for(int i=0;i<pixeles.size();i++){
 
-	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte izquierda de la linea 1)
-	    while(distancia>2){
+		//Si existe en la nube de puntos
+		if(pcl::isFinite(cloud_msg->points[pixeles[i].y*dImg.cols+pixeles[i].x])){
 
-		//Se halla la nueva distancia entre el punto inicial y el punto de en medio
-	        distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
-
-		//Cogemos el punto entre ellos
-		Point punto = pixelMedium(dImg,aux);
-
-		//Dividimos la linea
-	        aux = Vec4i(aux[0],aux[1],punto.x,punto.y);
-
-		//Si dicho punto existe en la nube
-		if(pcl::isFinite(cloud_msg->points[punto.y*dImg.cols+punto.x])){
-		    
-		    //Lo introducimos
-		    ind.push_back(punto.y*dImg.cols+punto.x);
-
-		}
-
-	    }
-		
-	    //Se coge la linea
-	    Vec4i aux2 = l2;
-
-	    //Hallamos la distancia entre los puntos
-	    double distancia2 = sqrt(pow(aux2[0]-aux2[2],2)+pow(aux2[1]-aux2[3],2));
-
-	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte izquierda de la linea 2)
-	    while(distancia2>2){
-
-		//Se halla la nueva distancia entre el punto inicial y el punto de en medio
-		distancia2 = sqrt(pow(aux2[0]-aux2[2],2)+pow(aux2[1]-aux2[3],2));
-
-		//Cogemos el punto entre ellos
-		Point punto2 = pixelMedium(dImg,aux2);
-
-		//Dividimos la linea
-	        aux2 = Vec4i(aux2[0],aux2[1],punto2.x,punto2.y);
-
-		//Si dicho punto existe en la nube
-		if(pcl::isFinite(cloud_msg->points[punto2.y*dImg.cols+punto2.x])){
-		    
-		    //Lo introducimos
-		    ind.push_back(punto2.y*dImg.cols+punto2.x);
+		    //Se introduce
+		    ind.push_back(pixeles[i].y*dImg.cols+pixeles[i].x);
 
 		}
 
 	    }
 
-	    //Cogemos de nuevo la linea 1
-	    Vec4i aux3 = l;
+	    //Obtenemos todos los puntos pertenecientes a la linea 2
+	    vector<Point> pixeles2 = lineVec(dImg,l2);
 
-	    //Hallamos la distancia entre los puntos
-	    double distancia3 = sqrt(pow(aux3[0]-aux3[2],2)+pow(aux3[1]-aux3[3],2));
+	    //Los recorremos
+	    for(int i=0;i<pixeles2.size();i++){
 
-	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte derecha de la linea 1)
-	    while(distancia3>2){
+		//Si existe en la nube de puntos
+		if(pcl::isFinite(cloud_msg->points[pixeles2[i].y*dImg.cols+pixeles2[i].x])){
 
-		//Se halla la nueva distancia entre el punto de en medio y el punto final
-	        distancia3 = sqrt(pow(aux3[0]-aux3[2],2)+pow(aux3[1]-aux3[3],2));
-
-		//Cogemos el punto entre ellos
-		Point punto3 = pixelMedium(dImg,aux3);
-
-		//Dividimos la linea
-	        aux3 = Vec4i(punto3.x,punto3.y,aux3[2],aux3[3]);
-
-		//Si dicho punto existe en la nube
-		if(pcl::isFinite(cloud_msg->points[punto3.y*dImg.cols+punto3.x])){
-		    
-		    //Lo introducimos
-		    ind.push_back(punto3.y*dImg.cols+punto3.x);
+		    //Se introduce
+		    ind.push_back(pixeles2[i].y*dImg.cols+pixeles2[i].x);
 
 		}
 
 	    }
-
-	    //Cogemos de nuevo la linea 2
-	    Vec4i aux4 = l2;
-
-	    //Hallamos la distancia entre los puntos
-	    double distancia4 = sqrt(pow(aux4[0]-aux4[2],2)+pow(aux4[1]-aux4[3],2));
-
-	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte derecha de la linea 2)
-	    while(distancia4>2){
-
-		//Se halla la nueva distancia entre el punto de en medio y el punto final
-		distancia4 = sqrt(pow(aux4[0]-aux4[2],2)+pow(aux4[1]-aux4[3],2));
-
-		//Cogemos el punto entre ellos
-		Point punto4 = pixelMedium(dImg,aux4);
-
-		//Dividimos la linea
-	        aux4 = Vec4i(punto4.x,punto4.y,aux4[2],aux4[3]);
-
-		//Si dicho punto existe en la nube
-		if(pcl::isFinite(cloud_msg->points[punto4.y*dImg.cols+punto4.x])){
-		    
-		    //Lo introducimos
-		    ind.push_back(punto4.y*dImg.cols+punto4.x);
-
-		}
-
-	    }
-
 
 	    inliers->indices=ind;
 
@@ -491,57 +410,17 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 	    }
 
-	    //Se coge la linea
-	    Vec4i aux = l;
+	    //Obtenemos todos los puntos pertenecientes a la linea
+	    vector<Point> pixeles = lineVec(dImg,l);
 
-	    //Hallamos la distancia entre los puntos
-	    double distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
+	    //Los recorremos
+	    for(int i=0;i<pixeles.size();i++){
 
-	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte izquierda de la linea)
-	    while(distancia>2){
+		//Si existe en la nube de puntos
+		if(pcl::isFinite(cloud_msg->points[pixeles[i].y*dImg.cols+pixeles[i].x])){
 
-		//Se halla la nueva distancia entre el punto inicial y el punto de en medio
-	        distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
-
-		//Cogemos el punto entre ellos
-		Point punto = pixelMedium(dImg,aux);
-
-		//Dividimos la linea
-	        aux = Vec4i(aux[0],aux[1],punto.x,punto.y);
-
-		//Si dicho punto existe en la nube
-		if(pcl::isFinite(cloud_msg->points[punto.y*dImg.cols+punto.x])){
-		    
-		    //Lo introducimos
-		    ind.push_back(punto.y*dImg.cols+punto.x);
-
-		}
-
-	    }
-
-	    //Cogemos de nuevo la linea
-	    aux = l;
-
-	    //Hallamos la distancia entre los puntos
-	    distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
-
-	    //Si al menos hay un pixel entre ellos (En este caso, se recorre la parte derecha de la linea)
-	    while(distancia>2){
-
-		//Se halla la nueva distancia entre el punto de en medio y el punto final
-	        distancia = sqrt(pow(aux[0]-aux[2],2)+pow(aux[1]-aux[3],2));
-
-		//Cogemos el punto entre ellos
-		Point punto = pixelMedium(dImg,aux);
-
-		//Dividimos la linea
-	        aux = Vec4i(punto.x,punto.y,aux[2],aux[3]);
-
-		//Si dicho punto existe en la nube
-		if(pcl::isFinite(cloud_msg->points[punto.y*dImg.cols+punto.x])){
-		    
-		    //Lo introducimos
-		    ind.push_back(punto.y*dImg.cols+punto.x);
+		    //Se introduce
+		    ind.push_back(pixeles[i].y*dImg.cols+pixeles[i].x);
 
 		}
 
@@ -549,11 +428,11 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 	    inliers->indices=ind;
 
-	    //Se borran todos los puntos excepto los introducidos pertenecientes a las lineas
 	    extract.setInputCloud(cloud_msg);
 
 	    extract.setIndices(inliers);
 
+	    //Se borran todos los puntos excepto los introducidos pertenecientes a las lineas
 	    extract.setNegative(false);
 
 	    extract.filter(*cloud_msg);
@@ -572,10 +451,28 @@ void linesPointcloud(cv::Mat dImg, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_
 
 }
 
-Point pixelMedium(cv::Mat dImg, Vec4i l){
+
+vector<Point> lineVec(cv::Mat dImg, Vec4i l){
+
+    //Calculamos la distancia entre los pixeles.
+    double distancia = sqrt(pow(l[0]-l[2],2)+pow(l[1]-l[3],2));
 
     //Si la distancia es muy corta, se devuelve el color perteneciente al pixel que se encuentra en el medio.
-    return Point((int)((l[0]+l[2])/2),(int)((l[1]+l[3])/2));
+    if (distancia <= 2){
+	vector<Point> vec;
+	vec.push_back(Point((int)((l[0]+l[2])/2),(int)((l[1]+l[3])/2)));
+	return vec;
+    }
+    
+    //Dividimos la linea en dos partes y se llama a la funcion de manera recursiva
+    vector<Point> lineLeft = lineVec(dImg, Vec4i(l[0],l[1],(int)((l[0]+l[2])/2),(int)((l[1]+l[3])/2)));
+
+    vector<Point> lineRight = lineVec(dImg, Vec4i((int)((l[0]+l[2])/2),(int)((l[1]+l[3])/2),l[2],l[3]));
+
+    //Se devuelve el vector final que compone a las dos partes
+    lineLeft.insert(lineLeft.end(), lineRight.begin(), lineRight.end());
+
+    return lineLeft;
 
 }
 
